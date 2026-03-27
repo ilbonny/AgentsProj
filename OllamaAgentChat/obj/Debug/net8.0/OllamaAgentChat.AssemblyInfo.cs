@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("OllamaAgentChat")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+aff818156c9ffc5e241d9cbc62944dbe7042b6bf")]
 [assembly: System.Reflection.AssemblyProductAttribute("OllamaAgentChat")]
 [assembly: System.Reflection.AssemblyTitleAttribute("OllamaAgentChat")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
