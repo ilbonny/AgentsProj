@@ -1,17 +1,17 @@
 # Ollama Agent Chat - Blazor Web Chat
 
-Applicazione web Blazor Server minimalista che implementa una chat full-screen con Microsoft Agent Framework e Ollama.
+Applicazione web Blazor Server minimalista che implementa una chat full-screen con Ollama utilizzando OpenAI SDK.
 
 ## Caratteristiche
 
-- 🤖 Integrazione con Microsoft Semantic Kernel e Agent Framework
+- 🤖 Integrazione con Ollama tramite OpenAI SDK
 - 💬 Interfaccia chat full-screen moderna e reattiva
-- 🦙 Supporto per modelli Ollama (LLaMA, Mistral, ecc.)
-- � Cambio modello in tempo reale tramite dropdown
-- 📝 Cronologia conversazione
+- 🦙 Supporto per tutti i modelli Ollama (LLaMA, Mistral, ecc.)
+- 📝 Cronologia conversazione con streaming in tempo reale
 - ⚙️ Configurazione flessibile
 - 🎯 UI minimalista focalizzata sulla chat
 - ⌨️ Invio messaggi con tasto Enter
+- 🌙 Tema scuro
 
 ## Prerequisiti
 
@@ -29,9 +29,10 @@ Prima di utilizzare l'applicazione, scaricare un modello Ollama:
 ollama pull llama3.2
 
 # Altri modelli disponibili:
-# ollama pull llama3.1
-# ollama pull mistral
-# ollama pull codellama
+ollama pull llama3.1:8b
+ollama pull mistral
+ollama pull codellama
+ollama pull phi3
 ```
 
 Per verificare che Ollama sia in esecuzione:
@@ -63,12 +64,11 @@ Modificare `appsettings.json` per configurare Ollama:
 2. Avviare l'applicazione:
 
 ```bash
-cd OllamaAgentChat
 dotnet run
 ```
 
 3. Aprire il browser all'indirizzo mostrato (di solito https://localhost:5001)
-4. Cliccare su "Chat AI" nel menu di navigazione
+4. La pagina chat si aprirà automaticamente
 
 ## Debug in Visual Studio Code
 
@@ -76,16 +76,9 @@ Il progetto include configurazioni predefinite per il debug:
 
 ### Avviare con il Debugger
 
-1. Aprire la cartella `OllamaAgentChat` in VS Code
+1. Aprire la cartella del progetto in VS Code
 2. Premere **F5** oppure andare su **Run > Start Debugging**
 3. Il browser si aprirà automaticamente sulla pagina `/chat`
-
-### Break Points
-
-Per impostare un breakpoint:
-1. Aprire il file desiderato (es: `Services/OllamaAgentService.cs`)
-2. Cliccare sul margine sinistro della riga dove vuoi fermare l'esecuzione
-3. Avviare il debug (F5)
 
 ### Hot Reload
 
@@ -99,53 +92,70 @@ dotnet watch run
 Il progetto suggerirà automaticamente queste estensioni:
 - **C# Dev Kit** - Supporto completo per C#
 - **C#** - IntelliSense e debugging
-- **.NET Runtime** - Runtime .NET
 
 ## Architettura
 
 ### Componenti Principali
 
-- **OllamaAgentService**: Servizio che gestisce la comunicazione con Ollama tramite Semantic Kernel
+- **AzureAgentService**: Servizio che gestisce la comunicazione con Ollama tramite OpenAI SDK
 - **Chat.razor**: Componente Blazor per l'interfaccia utente della chat
 - **ChatMessage**: Modello per i messaggi della conversazione
 
 ### Tecnologie Utilizzate
 
 - **Blazor Server** (.NET 8)
-- **Microsoft Semantic Kernel**: Framework per AI agents
-- **Ollama**: Runtime per modelli LLM locali
+- **Azure.AI.OpenAI**: SDK OpenAI compatibile con Ollama
+- **OpenAI**: Libreria client OpenAI
+- **System.ClientModel**: Per l'autenticazione API
+
+## Pacchetti NuGet
+
+```xml
+<PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
+<PackageReference Include="Azure.Identity" Version="1.19.0" />
+<PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0-rc4" />
+```
 
 ## Personalizzazione
 
 ### Modificare il comportamento dell'Agent
 
-Modificare il messaggio di sistema in `Services/OllamaAgentService.cs`:
+Modificare il messaggio di sistema in `Services/AzureAgentService.cs`:
 
 ```csharp
-_chatHistory.AddSystemMessage(
-    "Il tuo messaggio di sistema personalizzato qui..."
-);
+private readonly string _systemInstructions = 
+    "Il tuo messaggio di sistema personalizzato qui...";
 ```
 
-### Aggiungere funzionalità
+### Modelli Ollama Consigliati
 
-È possibile estendere l'agent con:
-- **Plugins**: Aggiungere funzioni che l'agent può chiamare
-- **Memory**: Implementare memoria persistente
-- **Planners**: Aggiungere capacità di planning automatico
+- **llama3.2**: Modello piccolo e veloce (3B parametri)
+- **llama3.1:8b**: Modello bilanciato (8B parametri)
+- **mistral**: Ottimo per uso generico
+- **codellama**: Specializzato per codice
+- **phi3**: Molto leggero (3.8B parametri)
+
+## Streaming in Tempo Reale
+
+L'applicazione supporta lo streaming delle risposte, mostrando il testo mentre viene generato dal modello.
 
 ## Risoluzione Problemi
 
 ### Ollama non si connette
 
+```
+Error: Connection refused
+```
+
 - Verificare che Ollama sia in esecuzione: `ollama list`
-- Controllare che l'endpoint in `appsettings.json` sia corretto
+- Controllare che l'endpoint in `appsettings.json` sia corretto (http://localhost:11434/v1)
 - Su Windows, Ollama usa di default la porta 11434
 
 ### Il modello non risponde
 
 - Verificare che il modello sia scaricato: `ollama list`
 - Controllare che il nome del modello in `appsettings.json` corrisponda esattamente
+- Provare a testare il modello direttamente: `ollama run llama3.2`
 
 ### Errori di compilazione
 
@@ -155,13 +165,28 @@ dotnet restore
 dotnet build
 ```
 
+### Il modello è lento
+
+- Considerare l'uso di un modello più piccolo (es: phi3, llama3.2)
+- Verificare le risorse del sistema (RAM, GPU)
+- Assicurarsi che nessun altro processo stia usando Ollama
+
+## Vantaggi di questo approccio
+
+- ✅ **Privacy**: I dati rimangono sul tuo computer
+- ✅ **Offline**: Non richiede connessione internet
+- ✅ **Gratuito**: Nessun costo API
+- ✅ **Veloce**: Risposte istantanee su hardware adeguato
+- ✅ **Standard**: Usa l'API OpenAI compatibile
+
 ## Prossimi Sviluppi
 
-- [ ] Supporto per streaming delle risposte
+- [x] Supporto per streaming delle risposte
+- [ ] Cambio modello dinamico tramite UI
 - [ ] Salvataggio conversazioni
 - [ ] Supporto per upload di file
-- [ ] Integrazione con altri provider LLM (Azure OpenAI, OpenAI)
 - [ ] Funzioni e tools personalizzati
+- [ ] Supporto multimodale (con modelli compatibili)
 
 ## Licenza
 
