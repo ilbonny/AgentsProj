@@ -1,0 +1,340 @@
+@page "/chat"
+@using OllamaAgentChat.Models
+@using OllamaAgentChat.Services
+@inject IConfiguration Configuration
+
+<PageTitle>Chat con Agent AI</PageTitle>
+
+<div class="chat-container @(isDarkTheme ? "dark-theme" : "")">
+    <div class="chat-header">
+        <h3>Chat con Agent AI</h3>
+        <div class="header-controls">
+            <select class="form-select form-select-sm model-selector" @bind="selectedModel" @bind:after="OnModelChanged" disabled="@isLoading">
+                @foreach (var model in availableModels)
+                {
+                    <option value="@model">@model</option>
+                }
+            </select>
+            <button class="btn btn-sm btn-secondary" @onclick="ToggleTheme" title="Cambia tema">
+                @(isDarkTheme ? "☀️" : "🌙")
+            </button>
+            <button class="btn btn-sm btn-secondary" @onclick="ClearChat">Pulisci Chat</button>
+        </div>
+    </div>
+
+    <div class="chat-messages" id="chatMessages">
+        @foreach (var message in messages)
+        {
+            <div class="message @(message.Role == "User" ? "user-message" : "assistant-message")">
+                <div class="message-header">
+                    <strong>@(message.Role == "User" ? "Tu" : "Agent AI")</strong>
+                    <span class="message-time">@message.Timestamp.ToString("HH:mm:ss")</span>
+                </div>
+                <div class="message-content">
+                    @message.Content
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="chat-input">
+        <input type="text" 
+               class="form-control" 
+               placeholder="Scrivi un messaggio..." 
+               @bind="userInput" 
+               @bind:event="oninput"
+               @onkeydown="HandleKeyPress"
+               disabled="@isLoading" />
+        <button class="btn btn-primary" @onclick="SendMessage" disabled="@isLoading">
+            Invia
+        </button>
+    </div>
+</div>
+
+@code {
+    private OllamaAgentService? agentService;
+    private OllamaModelService? modelService;
+    private List<ChatMessage> messages = new();
+    private List<string> availableModels = new();
+    private string selectedModel = string.Empty;
+    private string userInput = string.Empty;
+    private bool isLoading = false;
+    private bool isDarkTheme = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Legge la configurazione per Ollama
+        var ollamaEndpoint = Configuration["Ollama:Endpoint"] ?? "http://localhost:11434/v1";
+        var modelName = Configuration["Ollama:ModelName"] ?? "llama3.1:8b";
+
+        agentService = new OllamaAgentService(ollamaEndpoint, modelName);
+        modelService = new OllamaModelService(ollamaEndpoint);
+
+        // Carica i modelli disponibili
+        availableModels = await modelService.GetAvailableModelsAsync();
+        
+        // Se non ci sono modelli, usa quello di default
+        if (availableModels.Count == 0)
+        {
+            availableModels.Add(modelName);
+        }
+        
+        // Imposta il modello selezionato
+        selectedModel = availableModels.Contains(modelName) ? modelName : availableModels.First();
+    }
+
+    private void OnModelChanged()
+    {
+        if (agentService != null && !string.IsNullOrEmpty(selectedModel))
+        {
+            agentService.ChangeModel(selectedModel);
+            StateHasChanged();
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(userInput) || agentService == null)
+            return;
+
+        var userMessage = userInput.Trim();
+        userInput = string.Empty;
+
+        // Aggiunge il messaggio dell'utente
+        messages.Add(new ChatMessage
+        {
+            Role = "User",
+            Content = userMessage,
+            Timestamp = DateTime.Now
+        });
+
+        // Crea un messaggio vuoto per l'assistente che verrà riempito in streaming
+        var assistantMessage = new ChatMessage
+        {
+            Role = "Assistant",
+            Content = "",
+            Timestamp = DateTime.Now
+        };
+        messages.Add(assistantMessage);
+
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            // Ottiene la risposta in streaming dall'agent
+            await agentService.SendMessageStreamingAsync(userMessage, (token) =>
+            {
+                // Aggiunge ogni token al contenuto del messaggio
+                assistantMessage.Content += token;
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            assistantMessage.Content = $"Errore: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ClearChat()
+    {
+        messages.Clear();
+        agentService?.ClearHistory();
+        StateHasChanged();
+    }
+
+    private void ToggleTheme()
+    {
+        isDarkTheme = !isDarkTheme;
+        StateHasChanged();
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !isLoading)
+        {
+            await SendMessage();
+        }
+    }
+}
+
+<style>
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100%;
+        overflow: hidden;
+    }
+
+    .chat-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 20px;
+        background-color: #0066cc;
+        color: white;
+        flex-shrink: 0;
+    }
+
+    .chat-header h3 {
+        margin: 0;
+        font-size: 1.2rem;
+    }
+
+    .header-controls {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .model-selector {
+        min-width: 200px;
+        background-color: white;
+        color: #333;
+        border: none;
+        font-size: 0.9rem;
+    }
+
+    .model-selector:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+    }
+
+    .message {
+        margin-bottom: 15px;
+        padding: 12px;
+        border-radius: 8px;
+        max-width: 80%;
+    }
+
+    .user-message {
+        background-color: #0066cc;
+        color: white;
+        margin-left: auto;
+    }
+
+    .assistant-message {
+        background-color: white;
+        border: 1px solid #ddd;
+    }
+
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 0.85rem;
+    }
+
+    .message-time {
+        opacity: 0.7;
+    }
+
+    .message-content {
+        line-height: 1.4;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    .chat-input {
+        display: flex;
+        padding: 15px;
+        background-color: white;
+        border-top: 1px solid #ddd;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+
+    .chat-input input {
+        flex: 1;
+    }
+
+    .typing-indicator {
+        display: flex;
+        gap: 5px;
+    }
+
+    .typing-indicator span {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #0066cc;
+        animation: typing 1.4s infinite;
+    }
+
+    .typing-indicator span:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+
+    .typing-indicator span:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+
+    @@keyframes typing {
+        0%, 60%, 100% {
+            opacity: 0.3;
+            transform: translateY(0);
+        }
+        30% {
+            opacity: 1;
+            transform: translateY(-10px);
+        }
+    }
+
+    /* Tema Scuro */
+    .dark-theme .chat-messages {
+        background-color: #1e1e1e;
+    }
+
+    .dark-theme .message.assistant-message {
+        background-color: #2d2d2d;
+        border-color: #444;
+        color: #e0e0e0;
+    }
+
+    .dark-theme .message.user-message {
+        background-color: #0066cc;
+        color: white;
+    }
+
+    .dark-theme .chat-input {
+        background-color: #2d2d2d;
+        border-top-color: #444;
+    }
+
+    .dark-theme .chat-input input {
+        background-color: #1e1e1e;
+        color: #e0e0e0;
+        border-color: #444;
+    }
+
+    .dark-theme .chat-input input::placeholder {
+        color: #888;
+    }
+
+    .dark-theme .chat-header {
+        background-color: #1a1a1a;
+    }
+
+    .dark-theme .model-selector {
+        background-color: #2d2d2d !important;
+        color: #e0e0e0 !important;
+        border-color: #444 !important;
+    }
+
+    .dark-theme .typing-indicator span {
+        background-color: #0095ff;
+    }
+</style>
