@@ -66,3 +66,48 @@ a, .btn-link {
     .blazor-error-boundary::after {
         content: "An error has occurred."
     }
+
+/* Tema Scuro per Chat */
+.dark-theme .chat-messages {
+    background-color: #1e1e1e !important;
+}
+
+.dark-theme .message.assistant-message {
+    background-color: #2d2d2d !important;
+    border-color: #444 !important;
+    color: #e0e0e0 !important;
+}
+
+.dark-theme .message.user-message {
+    background-color: #0066cc !important;
+    color: white !important;
+}
+
+.dark-theme .chat-input {
+    background-color: #2d2d2d !important;
+    border-top-color: #444 !important;
+}
+
+.dark-theme .chat-input input {
+    background-color: #1e1e1e !important;
+    color: #e0e0e0 !important;
+    border-color: #444 !important;
+}
+
+.dark-theme .chat-input input::placeholder {
+    color: #888 !important;
+}
+
+.dark-theme .chat-header {
+    background-color: #1a1a1a !important;
+}
+
+.dark-theme .model-selector {
+    background-color: #2d2d2d !important;
+    color: #e0e0e0 !important;
+    border-color: #444 !important;
+}
+
+.dark-theme .typing-indicator span {
+    background-color: #0095ff !important;
+}

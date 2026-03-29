@@ -1,32 +1,63 @@
+using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
+using OllamaAgentChat.Agents;
 using OpenAI;
 using OpenAI.Chat;
 using System.ClientModel;
-using OllamaAgentChat.Models;
 using ChatMessage = OllamaAgentChat.Models.ChatMessage;
 
 namespace OllamaAgentChat.Services;
 
-public class AzureAgentService
+public class AzureAgentService : IAgentService
 {
-    private readonly dynamic _agent;
-    private readonly string _modelName;
+    private AIAgent _agent = null!;
+    private AgentSession _session = null!;
+    private string _modelName;
+    private readonly string _endpoint;
     private readonly List<ChatMessage> _chatHistory = new();
 
     public string DeploymentName => _modelName;
+    public string CurrentModel => _modelName;
+
+    private string _systemInstructions = @"Sei un assistente AI intelligente e cordiale. 
+Quando chiami una funzione per ottenere informazioni, usa ESATTAMENTE il risultato restituito dalla funzione nella tua risposta.
+NON inventare o simulare dati: usa solo i dati reali restituiti dalle funzioni.
+Se una funzione restituisce un risultato, presentalo all'utente in modo chiaro senza aggiungere disclaimer o note sulla simulazione.";
+
 
     public AzureAgentService(string endpoint, string modelName)
     {
+        _endpoint = endpoint;
         _modelName = modelName;
-        
+
+        InitializeAgent(modelName);
+    }
+
+    private async Task InitializeAgent(string modelName)
+    {
         var client = new OpenAIClient(new ApiKeyCredential("ollama"), new OpenAIClientOptions
         {
-            Endpoint = new Uri(endpoint + "v1")
+            Endpoint = new Uri($"{_endpoint}v1")
         });
-        
-        _agent = client.GetChatClient(modelName).AsAIAgent(
-            instructions: "Sei un assistente AI intelligente e cordiale. Rispondi in modo preciso e utile alle domande degli utenti.",
-            name: "OllamaAgent"
+
+         _agent = client.GetChatClient(modelName)
+            .AsAIAgent(
+                instructions: _systemInstructions,
+                name: "OllamaAgent",
+                tools: [
+                    AIFunctionFactory.Create(WeatherAgent.GetWeather),
+                    AIFunctionFactory.Create(WeatherAgent.GetWeatherForecast),
+                    AIFunctionFactory.Create(WeatherAgent.GetTemperature)
+                ]
         );
+
+        _session = await _agent.CreateSessionAsync();
+    }
+
+    public async Task ChangeModel(string newModelName)    
+    {
+        _modelName = newModelName;  
+        await InitializeAgent(newModelName);
     }
 
     private void AddUserMessage(string content)
@@ -55,9 +86,10 @@ public class AzureAgentService
 
         try
         {
-            var response = await _agent.InvokeAsync(userMessage);
-            var assistantMessage = response.Content ?? "Spiacente, non ho ricevuto una risposta.";
-            
+            // Usa la sessione per mantenere il contesto
+            var response = await _agent.RunAsync(userMessage, _session);
+            var assistantMessage = response.Text ?? "Spiacente, non ho ricevuto una risposta.";
+
             AddAssistantMessage(assistantMessage);
             return assistantMessage;
         }
@@ -77,15 +109,15 @@ public class AzureAgentService
 
         try
         {
-            var stream = _agent.RunStreamingAsync(userMessage);
-            
-            await foreach (var update in (IAsyncEnumerable<dynamic>)stream)
+            var stream = _agent.RunStreamingAsync(userMessage, _session);
+
+            await foreach (var update in stream)
             {
-                if (update.Content != null)
-                {
-                    fullResponse += update.Content;
-                    onTokenReceived(update.Content);
-                }
+                var content = update.Text;
+                if (string.IsNullOrEmpty(content)) continue;
+
+                fullResponse += content;
+                onTokenReceived(content);
             }
 
             AddAssistantMessage(fullResponse);
@@ -103,8 +135,9 @@ public class AzureAgentService
         return _chatHistory.ToList();
     }
 
-    public void ClearHistory()
+    public async Task ClearHistory()
     {
         _chatHistory.Clear();
+        _session = await _agent.CreateSessionAsync();
     }
 }

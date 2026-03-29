@@ -2,12 +2,11 @@
 
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
-using Microsoft.SemanticKernel.Connectors.OpenAI;
 using OllamaAgentChat.Models;
 
 namespace OllamaAgentChat.Services;
 
-public class OllamaAgentService
+public class OllamaAgentService: IAgentService
 {
     private Kernel _kernel = null!;
     private IChatCompletionService _chatService = null!;
@@ -15,6 +14,7 @@ public class OllamaAgentService
     private readonly string _ollamaEndpoint;
     private string _currentModel;
 
+    public string DeploymentName { get; }
     public string CurrentModel => _currentModel;
 
     public OllamaAgentService(string ollamaEndpoint, string modelName)
@@ -45,21 +45,20 @@ public class OllamaAgentService
         _chatService = _kernel.GetRequiredService<IChatCompletionService>();
     }
 
-    public void ChangeModel(string newModelName)
+    public Task ChangeModel(string newModelName)
     {
         _currentModel = newModelName;
         InitializeKernel(newModelName);
+
+        return Task.CompletedTask;
     }
 
     public async Task<string> SendMessageAsync(string userMessage)
     {
-        // Aggiunge il messaggio dell'utente alla cronologia
         _chatHistory.AddUserMessage(userMessage);
 
-        // Ottiene la risposta dall'agent
         var response = await _chatService.GetChatMessageContentAsync(_chatHistory);
         
-        // Aggiunge la risposta alla cronologia
         _chatHistory.AddAssistantMessage(response.Content ?? string.Empty);
 
         return response.Content ?? "Spiacente, non ho ricevuto una risposta.";
@@ -67,22 +66,18 @@ public class OllamaAgentService
 
     public async Task SendMessageStreamingAsync(string userMessage, Action<string> onTokenReceived)
     {
-        // Aggiunge il messaggio dell'utente alla cronologia
         _chatHistory.AddUserMessage(userMessage);
 
         var fullResponse = string.Empty;
 
-        // Ottiene la risposta in streaming dall'agent
         await foreach (var chunk in _chatService.GetStreamingChatMessageContentsAsync(_chatHistory))
         {
             var content = chunk.Content ?? string.Empty;
             fullResponse += content;
             
-            // Notifica ogni token ricevuto
             onTokenReceived(content);
         }
 
-        // Aggiunge la risposta completa alla cronologia
         _chatHistory.AddAssistantMessage(fullResponse);
     }
 
@@ -92,7 +87,6 @@ public class OllamaAgentService
         
         foreach (var message in _chatHistory)
         {
-            // Salta i messaggi di sistema
             if (message.Role.ToString() == "System")
                 continue;
 
@@ -107,12 +101,14 @@ public class OllamaAgentService
         return messages;
     }
 
-    public void ClearHistory()
+    public Task ClearHistory()
     {
         _chatHistory.Clear();
         _chatHistory.AddSystemMessage(
             "Sei un assistente AI intelligente e cordiale. " +
             "Rispondi in modo preciso e utile alle domande degli utenti."
         );
+
+        return Task.CompletedTask;
     }
 }
