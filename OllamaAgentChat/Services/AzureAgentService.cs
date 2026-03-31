@@ -19,10 +19,7 @@ public class AzureAgentService : IAgentService
     public string DeploymentName => _modelName;
     public string CurrentModel => _modelName;
 
-    private string _systemInstructions = @"Sei un assistente AI intelligente e cordiale. 
-Quando chiami una funzione per ottenere informazioni, usa ESATTAMENTE il risultato restituito dalla funzione nella tua risposta.
-NON inventare o simulare dati: usa solo i dati reali restituiti dalle funzioni.
-Se una funzione restituisce un risultato, presentalo all'utente in modo chiaro senza aggiungere disclaimer o note sulla simulazione.";
+    private string _systemInstructions = @"Sei un assistente AI intelligente e cordiale.";
 
 
     public AzureAgentService(string endpoint, string modelName)
