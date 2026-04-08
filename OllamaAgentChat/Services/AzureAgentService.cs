@@ -21,7 +21,6 @@ public class AzureAgentService : IAgentService
 
     private string _systemInstructions = @"Sei un assistente AI intelligente e cordiale.";
 
-
     public AzureAgentService(string endpoint, string modelName)
     {
         _endpoint = endpoint;
@@ -106,9 +105,7 @@ public class AzureAgentService : IAgentService
 
         try
         {
-            var stream = _agent.RunStreamingAsync(userMessage, _session);
-
-            await foreach (var update in stream)
+            await foreach (var update in _agent.RunStreamingAsync(userMessage, _session))
             {
                 var content = update.Text;
                 if (string.IsNullOrEmpty(content)) continue;

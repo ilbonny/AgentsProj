@@ -24,8 +24,10 @@ public partial class Chat : ComponentBase
         var ollamaEndpoint = Configuration["Ollama:Endpoint"] ?? "http://localhost:11434/";
         var modelName = Configuration["Ollama:ModelName"] ?? "llama3.1:8b";
 
-        _agentService = new AzureAgentService(ollamaEndpoint, modelName);
+        //_agentService = new AzureAgentService(ollamaEndpoint, modelName);
         //_agentService = new OllamaAgentService(ollamaEndpoint, modelName);
+        _agentService = new SequentialWeatherAgentService(ollamaEndpoint, modelName);
+
         modelService = new OllamaModelService(ollamaEndpoint);
 
         availableModels = await modelService.GetAvailableModelsAsync();
@@ -77,8 +79,11 @@ public partial class Chat : ComponentBase
         {
             await _agentService.SendMessageStreamingAsync(userMessage, (token) =>
             {
-                assistantMessage.Content += token;
-                StateHasChanged();
+                InvokeAsync(() =>
+                {
+                    assistantMessage.Content += token;
+                    StateHasChanged();
+                });
             });
         }
         catch (Exception ex)
